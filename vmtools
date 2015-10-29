@@ -1,0 +1,100 @@
+#!/usr/bin/env python
+#coding=utf-8
+#function:parse and check parameters
+import sys
+import os
+from argparse import ArgumentParser
+import operate
+from database import *
+
+def parse():
+
+    global srcdisk
+
+    p = ArgumentParser(usage='input -h or --help looking for the information', description='')
+
+    p.add_argument('-c', '--create', help='create a virtual machine', action="store_true")
+
+    p.add_argument('-d', '--delete', help='delete a virtual machine', action="store_true")
+
+    p.add_argument('user', help='username')
+
+    p.add_argument('--src_disk', help='the source disk name.Using it to produce new disk by copy itself', choices=srcdisk)
+
+    p.add_argument('--dst_disk', help='the disk name you expected.')
+
+    p.add_argument('-cpu', help='virtual cpu. Defalt = 1', default=1, type=int, choices=[1, 2, 4])
+
+    p.add_argument('-m', '--memory', help='memory size. Defalt = 1024', default=1024, type=int, choices=[1024, 2048, 4096])
+
+    p.add_argument('-p', '--port', help='VNC listen port. Default automaticly distribute a port to the vm', default=-1, type=int)
+    args = p.parse_args()
+
+    dict_args = vars(args)
+    # change to dict format
+    # print dict_args
+    return dict_args
+
+
+def checkuser(username):# check user from database
+    db = Database()
+    if not db.has_user(username):
+        print 'Database doesn\'t have the user %s' % (username, )
+        db.finish()
+        sys.exit()
+    db.finish()
+
+
+def auto_port():# idea:calcute the sum of VM, then plus 5901: means port progressive increses.
+    
+    db = Database()
+    vms = db.session.query(VM).all()
+    maxport = max(map(lambda x:int(x.VNC.split(':')[1]), vms))
+    print maxport
+    db.finish()
+    return maxport + 1
+
+"""def testinsert(argv):
+    db = Database()
+    db.insert_to_db(argv)"""
+"""def testdelete(args):
+    db = Database()
+    db.delete_from_db(dict_args['user'], dict_args['dst_disk'])
+"""
+def getdisk():
+    db = Database()
+    srcdisk = db.session.query(OSVersion).all() 
+    #print srcdisk
+    return map(lambda x:x.Version, srcdisk)
+
+
+
+if __name__ == '__main__':
+
+    global srcdisk
+    srcdisk = getdisk()
+
+    dict_args = parse()
+
+    if not dict_args['create'] and not dict_args['delete']:
+        dict_args['create'] = True
+
+    if not dict_args['dst_disk']:
+        print 'Please imput the dst_disk.'
+        print 'usage: input -h or --help looking for the information'
+        sys.exit()
+    # print dict_args
+
+    checkuser(dict_args['user'])
+    # testinsert(dict_args)
+    # testdelete(dict_args)
+    if dict_args['port'] == -1:
+        dict_args['port'] = auto_port()
+
+    if dict_args['create']:
+        if not dict_args['src_disk']:
+            print 'Please imput the src_disk.'
+            print 'usage: input -h or --help looking for the information'
+            sys.exit()
+
+    operate.main(dict_args)
